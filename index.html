@@ -207,6 +207,41 @@ nav.tabs button[aria-selected="true"]{color:var(--green)}
 .qi svg{width:22px;height:22px}
 @media (max-width:380px){.tok{width:68px}.livecard b{font-size:24px}.quick{grid-template-columns:repeat(2,1fr)}}
 
+/* ---- ESPN-style additions ---- */
+.gwstrip{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+.gwd{flex:0 0 54px}
+.gwd em.win{color:var(--green);font-weight:700}.gwd em.loss{color:var(--bad);font-weight:700}
+.gwd.cur em{color:var(--gold)}
+.draftcard{grid-template-columns:1fr auto;align-items:center}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:var(--on-green);position:relative;z-index:1}
+.price small{display:block;font-size:10.5px;color:var(--muted);font-weight:500;letter-spacing:.04em}
+.st{font-size:11px;font-weight:600;padding:1px 6px;border-radius:5px}
+.st.on{background:color-mix(in srgb,var(--green) 14%,var(--surface));color:var(--green)}
+.st.off{background:var(--bad-soft);color:var(--bad)}
+.sd{position:absolute;top:-3px;left:-3px;width:12px;height:12px;border-radius:50%;border:2px solid var(--surface)}
+.sd.on{background:#3FCB8A}.sd.off{background:#E0533F}
+.sd.inl{position:static;display:inline-block;vertical-align:-1px;border-color:transparent}
+.lrow{display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.lrow:first-child{border-top:0}
+.lrow select{width:100%;padding:10px 12px}
+.slot{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--green);background:color-mix(in srgb,var(--green) 10%,var(--surface));border-radius:8px;text-align:center;padding:6px 0}
+.mt th{white-space:normal}
+.mt td{padding:9px 4px}
+.mt .sl{text-align:center;font-size:11px;font-weight:700;color:var(--green);width:44px}
+.mc{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mc span{font-size:14px;font-weight:500;min-width:0}
+.mc small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.mc b{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.rt .mc{flex-direction:row-reverse;text-align:right}
+.br{display:flex;justify-content:space-between;gap:10px;padding:4px 0}
+.br b{font-weight:600;font-variant-numeric:tabular-nums}
+.br b.win{color:var(--green)}.br b.loss{color:var(--bad)}
+.sch{padding:10px 0;border-top:1px solid var(--line)}.sch:first-child{border-top:0}
+tr.cut td{border-bottom:2px dashed var(--gold)}
+hr{border:0;border-top:1px solid var(--line);margin:6px 0}
+.ic.rmw{color:var(--bad)}
+.ground .frow{gap:10px}
+
 /* ---- Auth ---- */
 .auth main{padding-block:24px 40px}
 .field{display:flex;flex-direction:column;gap:6px}
@@ -385,16 +420,21 @@ function rng(seed){let a=seed>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.
 const PLAYERS=RAW.trim().split("\n").map((l,i)=>{const[t,n,r,tier,os]=l.split("|");const base={3:9.5,2:7.5,1:5.5}[tier];const adj=(r==="AR"?0.5:0)+((hash(n)%3)-1)*0.5;return{id:i,team:t,name:n,role:r,tier:+tier,os:os==="1",price:Math.max(4.5,base+adj)}});
 const BY_ID=Object.fromEntries(PLAYERS.map(p=>[p.id,p]));
 
-/* ---------- Rules ---------- */
-const BUDGET=100,SQUAD_SIZE=15,MAX_PER_TEAM=3,GWS=5;
-const QUOTA={WK:2,BAT:5,AR:3,BWL:5};
-const XI_MIN={WK:1,BAT:3,AR:1,BWL:3};
+/* ---------- League rules (ESPN-style, adapted for cricket) ---------- */
+const NT=8, ROUNDS=12, WEEKS=10, REG_WEEKS=7, USER=0;
+const SLOTS=["WK","BAT","BAT","AR","AR","BWL","BWL","BWL","FLEX"];
+const ROLE_MIN={WK:1,BAT:2,AR:2,BWL:3};
+const ROLE_MAX={WK:2,BAT:4,AR:4,BWL:5};
 const ROLES=["WK","BAT","AR","BWL"];
 const ROLE_NAME={WK:"Wicketkeepers",BAT:"Batters",AR:"All-rounders",BWL:"Bowlers"};
 
+/* SA20 rounds: double round robin of 6 franchises, each franchise plays once per round = one fantasy week */
 function buildFixtures(){const t=[...TEAM_KEYS];const rounds=[];for(let r=0;r<5;r++){rounds.push([[t[0],t[5]],[t[1],t[4]],[t[2],t[3]]]);t.splice(1,0,t.pop())}
-  return Array.from({length:GWS},(_,g)=>[...rounds[g],...rounds[(g+2)%5].map(([a,b])=>[b,a])])}
+  return[...rounds,...rounds.map(rd=>rd.map(([a,b])=>[b,a]))]}
 const FIXTURES=buildFixtures();
+/* Fantasy schedule: 8 teams, 7-week round robin */
+function buildSchedule(){const a=[...Array(NT).keys()];const out=[];for(let r=0;r<REG_WEEKS;r++){const wk=[];for(let i=0;i<NT/2;i++)wk.push([a[i],a[NT-1-i]]);out.push(wk);a.splice(1,0,a.pop())}return out}
+const SCHEDULE=buildSchedule();
 
 /* ---------- Simulation ---------- */
 function matchXI(team,key){const r=rng(hash(key+"xi"+team));const pool=PLAYERS.filter(p=>p.team===team).map(p=>({p,s:p.tier+r()*1.7}));pool.sort((a,b)=>b.s-a.s);let xi=pool.slice(0,11).map(x=>x.p);
@@ -428,66 +468,105 @@ function score(L,role){const parts=[];let s=0;const add=(n,l)=>{if(n){s+=n;parts
 function fmtLine(L){const a=[];if(L.bat)a.push(`${L.bat.runs}${L.bat.out?"":"*"}(${L.bat.balls})`);else a.push("dnb");if(L.bowl)a.push(`${L.bowl.overs}-${L.bowl.maidens}-${L.bowl.runs}-${L.bowl.wkts}`);
   const f=L.field;const fl=[f.ct&&`${f.ct}ct`,f.st&&`${f.st}st`,(f.rod+f.roi)&&`${f.rod+f.roi}ro`].filter(Boolean).join(" ");if(fl)a.push(fl);return a.join(" · ")}
 const gwCache={};
-function simGW(g){const k=S.seed+"g"+g;if(gwCache[k])return gwCache[k];const res={};PLAYERS.forEach(p=>res[p.id]={pts:0,lines:[],played:false});
+function simGW(g){const k=S.seed+"w"+g;if(gwCache[k])return gwCache[k];const res={};PLAYERS.forEach(p=>res[p.id]={pts:0,lines:[],played:false});
   FIXTURES[g].forEach(([a,b],m)=>{const mk=k+"m"+m;[a,b].forEach(team=>{const opp=team===a?b:a;matchXI(team,mk).forEach(p=>{const L=statLine(p,mk);const sc=score(L,p.role);const r=res[p.id];r.played=true;r.pts+=sc.s;r.lines.push({opp,L,sc})})})});
   return gwCache[k]=res}
-function validXI(xi){if(xi.length!==11)return false;return ROLES.every(r=>xi.filter(id=>BY_ID[id].role===r).length>=XI_MIN[r])}
-function teamGW(fs,g){const res=simGW(g);let xi=[...fs.xi];const bench=fs.squad.filter(id=>!fs.xi.includes(id));const subs=[];
-  xi.forEach((id,i)=>{if(res[id].played)return;for(const b of bench){if(!res[b].played||subs.some(s=>s.in===b))continue;const trial=[...xi];trial[i]=b;if(validXI(trial)){xi=trial;subs.push({out:id,in:b});break}}});
-  let cap=fs.cap,vc=fs.vc,capMult={};if(res[cap]?.played){capMult[cap]=2;if(res[vc]?.played)capMult[vc]=1.5}else if(res[vc]?.played)capMult[vc]=2;
-  let total=0;const rows=xi.map(id=>{const m=capMult[id]||1;const pts=Math.round(res[id].pts*m);total+=pts;return{id,m,pts,lines:res[id].lines,sub:subs.some(s=>s.in===id),played:res[id].played}});
-  return{total,rows,subs}}
 
-/* ---------- Squad helpers ---------- */
-function cost(sq){return sq.reduce((a,id)=>a+BY_ID[id].price,0)}
-function countRole(sq,r){return sq.filter(id=>BY_ID[id].role===r).length}
-function countTeam(sq,t){return sq.filter(id=>BY_ID[id].team===t).length}
-function addBlock(sq,p){if(sq.length>=SQUAD_SIZE)return"Squad full";if(countRole(sq,p.role)>=QUOTA[p.role])return`${p.role} full`;if(countTeam(sq,p.team)>=MAX_PER_TEAM)return`3 from ${p.team}`;if(cost(sq)+p.price>BUDGET+1e-9)return"Over budget";return null}
-function autoPick(r,tries=600){let best=null,bv=-1;for(let k=0;k<tries;k++){const sq=[];for(const role of ROLES){const pool=PLAYERS.filter(p=>p.role===role).sort(()=>r()-.5);for(const p of pool){if(countRole(sq,role)>=QUOTA[role])break;if(countTeam(sq,p.team)<MAX_PER_TEAM)sq.push(p.id)}}
-    if(sq.length!==SQUAD_SIZE)continue;const c=cost(sq);if(c>BUDGET)continue;const v=sq.reduce((a,id)=>a+BY_ID[id].tier,0)+c/20;if(v>bv){bv=v;best=sq}}return best}
-function autoXI(sq){const byVal=[...sq].sort((a,b)=>BY_ID[b].price-BY_ID[a].price);const xi=[];for(const r of ROLES){byVal.filter(id=>BY_ID[id].role===r).slice(0,XI_MIN[r]).forEach(id=>xi.push(id))}
-  for(const id of byVal){if(xi.length>=11)break;if(!xi.includes(id))xi.push(id)}const order=[...xi].sort((a,b)=>BY_ID[b].price-BY_ID[a].price);return{xi,cap:order[0],vc:order[1]}}
+/* ---------- Projections (expected points per match, used for draft rankings) ---------- */
+const PROJ={},PPLAY={};
+(function(){const N=40,play={},pts={};PLAYERS.forEach(p=>{play[p.id]=0;pts[p.id]=0});
+  for(let i=0;i<N;i++){const k="proj"+i;TEAM_KEYS.forEach(t=>matchXI(t,k).forEach(p=>{play[p.id]++;pts[p.id]+=score(statLine(p,k),p.role).s}))}
+  PLAYERS.forEach(p=>{PPLAY[p.id]=play[p.id]/N;PROJ[p.id]=Math.round(play[p.id]?pts[p.id]/play[p.id]*PPLAY[p.id]:0)})})();
+const RANK={};[...PLAYERS].sort((a,b)=>PROJ[b.id]-PROJ[a.id]).forEach((p,i)=>RANK[p.id]=i+1);
 
 /* ---------- State ---------- */
-const KEY="lc-fantasy-v1",ACC="lc-fantasy-accounts";
+const KEY="lc-fantasy-espn-v1",ACC="lc-fantasy-accounts";
 const DEMO={email:"lee.test",display:"Lee.test",password:"123",name:"Lee"};
-const RIVAL_NAMES=[["Thandi M.","Newlands Nightwatch"],["Pieter V.","Boland Bouncers"],["Aisha K.","Kingsmead Swingers"],["Sipho N.","Wanderers Wagon Wheel"],["Megan R.","Centurion Cover Drives"],["Rohan P.","St George's Slips"],["Lerato D.","Paarl Pinch Hitters"]];
+const RIVALS=[["Thandi M.","Newlands Nightwatch"],["Pieter V.","Boland Bouncers"],["Aisha K.","Kingsmead Swingers"],["Sipho N.","Wanderers Wagon Wheel"],["Megan R.","Centurion Cover Drives"],["Rohan P.","St George's Slips"],["Lerato D.","Paarl Pinch Hitters"]];
 let S;
-function fresh(){const seed=Math.floor(Math.random()*1e9);const r=rng(seed);const squad=autoPick(r,1500);const a=autoXI(squad);
-  const rivals=RIVAL_NAMES.map(([m,t],i)=>{const rr=rng(seed+i*77);const sq=autoPick(rr,300);return{manager:m,team:t,squad:sq,...autoXI(sq),hist:[]}});
-  return{seed,squad,xi:a.xi,cap:a.cap,vc:a.vc,gw:0,free:1,locked:null,hist:[],rivals,sample:true,tab:"home",teamName:"LC Strikers"}}
-function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.squad&&j.rivals)return j}catch(e){}return fresh()}
+function fresh(){const seed=Math.floor(Math.random()*1e9);const r=rng(seed);const order=[...Array(NT).keys()].sort(()=>r()-.5);
+  return{seed,phase:"predraft",order,picks:[],rosters:Array.from({length:NT},()=>[]),lineups:Array.from({length:NT},()=>Array(SLOTS.length).fill(null)),
+    week:0,played:[],seeds:null,tab:"home",teamName:"LC Strikers",rivals:RIVALS.map(([m,t])=>({manager:m,name:t}))}}
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.rosters&&j.order)return j}catch(e){}return fresh()}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function accounts(){try{return JSON.parse(localStorage.getItem(ACC))||[]}catch(e){return[]}}
 S=load();
 
+/* ---------- League helpers ---------- */
+function teamName(t){return t===USER?S.teamName:S.rivals[t-1].name}
+function managerName(t){return t===USER?(ui.user?.name||"You"):S.rivals[t-1].manager}
+function ownerOf(id){for(let t=0;t<NT;t++)if(S.rosters[t].includes(id))return t;return null}
+function freeAgents(){const own=new Set(S.rosters.flat());return PLAYERS.filter(p=>!own.has(p.id))}
+function roleCount(ros,r){return ros.filter(id=>BY_ID[id].role===r).length}
+function draftBlock(ros,p){if(roleCount(ros,p.role)>=ROLE_MAX[p.role])return`${p.role} limit`;const left=ROUNDS-ros.length-1;
+  const need=ROLES.reduce((a,r)=>a+Math.max(0,ROLE_MIN[r]-roleCount(ros,r)-(r===p.role?1:0)),0);return need>left?"Need other roles":null}
+function swapBlock(ros,addId,dropId){const n=ros.filter(i=>i!==dropId).concat(addId);for(const r of ROLES){const c=roleCount(n,r);if(c>ROLE_MAX[r])return`Too many ${r}`;if(c<ROLE_MIN[r])return`Need ${ROLE_MIN[r]} ${r}`}return null}
+function eligible(slot,id){return id!=null&&(slot==="FLEX"||BY_ID[id].role===slot)}
+function weekRes(g){return g<WEEKS?simGW(g):null}
+function inXI(id,g=S.week){const r=weekRes(g);return r?r[id].played:false}
+function bestLineup(ros,g){const res=weekRes(g);const val=id=>(res&&!res[id].played?-1000:0)+PROJ[id];const used=new Set();const out=Array(SLOTS.length).fill(null);
+  ["WK","BWL","AR","BAT","FLEX"].forEach(s=>SLOTS.forEach((sl,i)=>{if(sl!==s)return;const c=ros.filter(id=>!used.has(id)&&eligible(sl,id)).sort((a,b)=>val(b)-val(a))[0];if(c!=null){out[i]=c;used.add(c)}}));return out}
+function lineupProj(lu,g){return lu.reduce((a,id)=>a+(id!=null&&inXI(id,g)?PROJ[id]:0),0)}
+
+/* matchups for a week: [a,b] pairs; playoff weeks use seeds */
+function matchups(g){if(g<REG_WEEKS)return SCHEDULE[g];if(!S.seeds)return[];const s=S.seeds;
+  if(g<9)return[[s[0],s[3]],[s[1],s[2]]];if(!S.final)return[];return[S.final,S.third]}
+function weekScore(g,t){return S.played[g]?S.played[g].scores[t]:null}
+function semiTotal(t){return(weekScore(7,t)||0)+(weekScore(8,t)||0)}
+function record(t){let w=0,l=0,ti=0,pf=0,pa=0;for(let g=0;g<Math.min(S.week,REG_WEEKS);g++){const m=SCHEDULE[g].find(p=>p.includes(t));const o=m[0]===t?m[1]:m[0];const a=weekScore(g,t),b=weekScore(g,o);pf+=a;pa+=b;if(a>b)w++;else if(a<b)l++;else ti++}return{w,l,ti,pf,pa}}
+function standings(){return[...Array(NT).keys()].map(t=>({t,...record(t)})).sort((a,b)=>(b.w+b.ti/2)-(a.w+a.ti/2)||b.pf-a.pf)}
+function recStr(r){return`${r.w}-${r.l}${r.ti?"-"+r.ti:""}`}
+function userMatch(g){return matchups(g).find(p=>p.includes(USER))||null}
+function weekLabel(g){return g<REG_WEEKS?`Week ${g+1}`:g<9?`Semi-final · week ${g+1}`:`Final · week ${g+1}`}
+
+/* ---------- Draft ---------- */
+function pickTeam(n){const r=Math.floor(n/NT),i=n%NT;return S.order[r%2===0?i:NT-1-i]}
+function availableForDraft(){const own=new Set(S.picks.map(p=>p.id));return PLAYERS.filter(p=>!own.has(p.id))}
+function chooseFor(t,noise){const r=rng(hash(S.seed+"dp"+S.picks.length));const ros=S.rosters[t];
+  return availableForDraft().filter(p=>!draftBlock(ros,p)).map(p=>({p,v:PROJ[p.id]*(noise?0.82+r()*0.36:1)})).sort((a,b)=>b.v-a.v)[0].p}
+function makePick(t,id){S.picks.push({t,id,n:S.picks.length});S.rosters[t].push(id)}
+function runDraft(stopAtUser=true){while(S.picks.length<NT*ROUNDS){const t=pickTeam(S.picks.length);if(t===USER&&stopAtUser)break;makePick(t,chooseFor(t,t!==USER).id)}
+  if(S.picks.length>=NT*ROUNDS)finishDraft()}
+function finishDraft(){S.phase="season";for(let t=0;t<NT;t++)S.lineups[t]=bestLineup(S.rosters[t],0)}
+
+/* ---------- Play a week ---------- */
+function playWeek(){const g=S.week;const res=simGW(g);for(let t=1;t<NT;t++)S.lineups[t]=bestLineup(S.rosters[t],g);
+  const scores=[],lus=[];for(let t=0;t<NT;t++){const lu=[...S.lineups[t]];lus.push(lu);scores.push(lu.reduce((a,id)=>a+(id!=null?res[id].pts:0),0))}
+  S.played[g]={scores,lineups:lus};S.week++;
+  if(S.week===REG_WEEKS)S.seeds=standings().slice(0,4).map(x=>x.t);
+  if(S.week===9){const s=S.seeds;const w1=semiTotal(s[0])>=semiTotal(s[3])?s[0]:s[3],l1=w1===s[0]?s[3]:s[0];const w2=semiTotal(s[1])>=semiTotal(s[2])?s[1]:s[2],l2=w2===s[1]?s[2]:s[1];S.final=[w1,w2];S.third=[l1,l2]}
+  if(S.week===WEEKS){const[a,b]=S.final;S.champion=weekScore(9,a)>=weekScore(9,b)?a:b;S.phase="done"}
+  if(S.week<WEEKS)S.lineups[USER]=S.lineups[USER].map((id,i)=>id);}
+
 /* ---------- UI helpers ---------- */
 const app=document.getElementById("app");
-const ui={screen:"auth",authMode:"in",authErr:"",role:"ALL",team:"ALL",q:"",pool:"pool",resetArm:false,user:null};
+const ui={screen:"auth",authMode:"in",authErr:"",role:"ALL",q:"",pview:"fa",adding:null,resetArm:false,user:null,dRole:"ALL"};
 const $=s=>app.querySelector(s);
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function pendingTransfers(){return S.gw>0&&S.locked?S.squad.filter(id=>!S.locked.includes(id)).length:0}
-function hitCost(){return Math.max(0,pendingTransfers()-S.free)*4}
-function total(h){return h.reduce((a,x)=>a+x.net,0)}
 function withLoader(text,ms,fn){const l=document.getElementById("loader");document.getElementById("ldrText").textContent=text;l.hidden=false;setTimeout(()=>{fn();l.hidden=true},ms)}
+function initials(n){const w=n.split(" ");return(w[0][0]+w[w.length-1][0]).toUpperCase()}
+function last(n){return n.split(" ").slice(-1)[0]}
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const ARROW='<svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const ICONS={
-  squad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c2.5.1 4.1 1.7 4.6 4.8"/></svg>',
-  team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.7-2 2.6-4 2.6S8.5 4.7 8 3z"/></svg>',
-  week:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/></svg>',
+  lineup:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.7-2 2.6-4 2.6S8.5 4.7 8 3z"/></svg>',
+  matchup:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h7M4 12h7M4 17h7M13 7h7M13 12h7M13 17h7"/><path d="M12 4v16" stroke-dasharray="2 2"/></svg>',
+  players:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><path d="M18 8v6M15 11h6"/></svg>',
   league:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M17 6h3v1.5A3.5 3.5 0 0 1 16.5 11M12 14v4M8 21h8"/></svg>',
   rules:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 4.5h9.5L19 9v10.5H5z"/><path d="M14.5 4.5V9H19M8.5 13h7M8.5 16.5h5" stroke-linecap="round"/></svg>'};
-ICONS.home='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/></svg>';
-const TABS=[["home","Home"],["squad","Squad"],["team","Pick XI"],["week","Gameweek"],["league","League"]];
-
+const TABS=[["home","Home"],["lineup","Lineup"],["matchup","Matchup"],["players","Players"],["league","League"]];
+function nav(){return`<nav class="tabs" role="tablist" aria-label="Sections">${TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${ICONS[k]}<span>${l}</span></button>`).join("")}</nav>`}
+function go(tab){S.tab=tab;ui.adding=null;ui.resetArm=false;commit();window.scrollTo(0,0)}
+function bindCommon(){app.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>go(b.dataset.tab));app.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go))}
 function hero({title,right,rightId,badge,name,subL,subR}){return`<header class="hero gut"><div class="topbar"><span class="l">LC</span><span class="t">${esc(title)}</span>${right?`<button class="r" id="${rightId}">${esc(right)}</button>`:"<span></span>"}</div>
   <div class="badge">${badge}</div><h1 class="hname">${esc(name)}</h1><div class="hsub"><div>${subL}</div><div>${subR}</div></div></header>`}
-function pRow(p,actions,extra=""){return`<div class="p"><div style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="meta"><span class="role">${p.role}</span><span>${p.team}</span>${p.os?"<span>· Overseas</span>":""}${extra}</div></div><div class="price">${p.price.toFixed(1)}</div>${actions}</div>`}
-function shell(heroHtml,body,fab){app.innerHTML=heroHtml+`<main class="gut">${body}</main>`+(fab?`<span class="fab-l">${esc(fab.label)}</span><button class="fab" id="fab" aria-label="${esc(fab.label)}" ${fab.disabled?"disabled":""}>${fab.icon}</button>`:"")+
-  `<nav class="tabs" role="tablist" aria-label="Sections">${TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${ICONS[k]}<span>${l}</span></button>`).join("")}</nav>`;
-  app.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;ui.resetArm=false;commit();window.scrollTo(0,0)});
-  if(fab&&!fab.disabled)$("#fab").onclick=fab.onClick}
+function fabHtml(f){return f?`<span class="fab-l">${esc(f.label)}</span><button class="fab" id="fab" aria-label="${esc(f.label)}" ${f.disabled?"disabled":""}>${f.icon}</button>`:""}
+function shell(h,body,fab){app.innerHTML=h+`<main class="gut">${body}</main>`+fabHtml(fab)+nav();bindCommon();if(fab&&!fab.disabled)$("#fab").onclick=fab.onClick}
+function status(id,g=S.week){if(S.phase==="predraft"||S.phase==="draft"||g>=WEEKS)return"";return inXI(id,g)?'<span class="st on">In XI</span>':'<span class="st off">Not named</span>'}
+function pRow(p,right,extra=""){return`<div class="p"><div style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="meta"><span class="role">${p.role}</span><span>${p.team}</span>${p.os?"<span>· OS</span>":""}${extra}</div></div><div class="price">${PROJ[p.id]}<small>proj</small></div>${right}</div>`}
+function playFab(){const g=S.week;if(S.phase!=="season")return null;const m=userMatch(g);
+  return{label:`Play ${weekLabel(g).toLowerCase()}`,icon:CHECK,onClick:()=>withLoader(`Playing week ${g+1}…`,1100,()=>{playWeek();S.tab="matchup";commit();window.scrollTo(0,0)})}}
 
 /* ---------- Auth ---------- */
 function renderAuth(){const up=ui.authMode==="up";
@@ -512,140 +591,140 @@ function renderAuth(){const up=ui.authMode==="up";
       accs.push({email,password:pw,name});try{localStorage.setItem(ACC,JSON.stringify(accs))}catch(err){}S.teamName=name.split(" ")[0]+"'s XI";signIn({email,name})}
     else{if(!email||!pw)return authFail("Enter your username and password.");const acc=email===DEMO.email&&pw===DEMO.password?DEMO:accounts().find(a=>a.email===email&&a.password===pw);
       if(!acc)return authFail("Username or password is incorrect. Try the demo account below.");signIn(acc)}};
-  function authFail(m){ui.authErr=m;const v={e:$("#au-email").value,p:$("#au-pass").value,n:$("#au-name")?.value};renderAuth();$("#au-email").value=v.e;$("#au-pass").value=v.p;if($("#au-name"))$("#au-name").value=v.n||""}
-}
-function signIn(acc){ui.user={email:acc.email,name:acc.name};ui.authErr="";withLoader("Loading your squad…",1300,()=>{ui.screen="app";S.tab="home";commit();window.scrollTo(0,0)})}
+  function authFail(m){ui.authErr=m;const v={e:$("#au-email").value,p:$("#au-pass").value,n:$("#au-name")?.value};renderAuth();$("#au-email").value=v.e;$("#au-pass").value=v.p;if($("#au-name"))$("#au-name").value=v.n||""}}
+function signIn(acc){ui.user={email:acc.email,name:acc.name};ui.authErr="";withLoader("Loading your league…",1300,()=>{ui.screen="app";S.tab="home";commit();window.scrollTo(0,0)})}
 
-/* ---------- Squad ---------- */
-function renderSquad(){const sq=S.squad,c=cost(sq),tr=pendingTransfers();
-  const h=hero({title:"Squad",right:sq.length?"Reset":"",rightId:"clear",badge:(BUDGET-c).toFixed(1),name:S.teamName,subL:`${sq.length} of 15 <span>players</span>`,subR:`${c.toFixed(1)} <span>/ 100 cr</span>`});
+/* ---------- Home dashboard ---------- */
+function renderHome(){const first=(ui.user?.name||"Manager").split(" ")[0];const pre=S.phase==="predraft"||S.phase==="draft";
+  const st=standings(),myRank=st.findIndex(x=>x.t===USER)+1,rec=record(USER),g=S.week,m=g<WEEKS?userMatch(g):null,opp=m?(m[0]===USER?m[1]:m[0]):null;
+  const strip=Array.from({length:WEEKS},(_,w)=>{const um=S.played[w]?userMatch(w):null;let res="—";
+    if(um){const o=um[0]===USER?um[1]:um[0];const a=w>=7&&w<9?null:weekScore(w,USER),b=w>=7&&w<9?null:weekScore(w,o);res=a==null?"semi":a>b?"W":a<b?"L":"T"}else if(S.played[w])res="out";
+    const cur=w===g&&!pre;return`<button class="gwd${cur?" cur":""}${S.played[w]?" done":""}" data-go="matchup" aria-label="Week ${w+1}"><small>${w<REG_WEEKS?"WK":"PO"}</small><b>${w+1}</b><em class="${res==="W"?"win":res==="L"?"loss":""}">${cur?"next":res}</em></button>`}).join("");
+  const lu=S.lineups[USER];
+  const tok=(i)=>{const id=lu[i],sl=SLOTS[i];if(id==null)return`<button class="tok empty" data-go="${pre?"lineup":"lineup"}" aria-label="Empty ${sl} slot"><span class="shirt">+</span><span class="tn">${sl}</span></button>`;
+    const p=BY_ID[id],on=g<WEEKS&&!pre&&inXI(id);return`<button class="tok" data-go="lineup" aria-label="${esc(p.name)}, ${sl}"><span class="shirt">${initials(p.name)}${!pre&&g<WEEKS?`<i class="sd ${on?"on":"off"}"></i>`:""}</span><span class="tn">${esc(last(p.name))}</span><span class="tr">${sl} · ${p.team}</span></button>`};
+  const rowsIdx=[[0,8],[1,2],[3,4],[5,6,7]];
+  const bench=S.rosters[USER].filter(id=>!lu.includes(id));
+  let top=pre?`<div class="livecard draftcard"><div><span class="lc-k">Draft day</span><b style="display:block;margin-top:10px">Snake draft</b><small>8 teams · 12 rounds · you pick #${S.order.indexOf(USER)+1}</small></div>
+      <button class="btn gold" data-go="lineup">${S.phase==="draft"?"Resume draft":"Enter draft room"}</button></div>`
+   :`<div class="livecard"><div class="lc-stats"><div><b>${recStr(rec)}</b><small>record</small></div><div><b>${S.week?"#"+myRank:"—"}</b><small>standing of 8</small></div><div><b>${rec.pf}</b><small>points for</small></div></div>
+     <div class="lc-side"><span class="lc-k">${S.phase==="done"?"Season over":weekLabel(g)}</span>${S.phase==="done"?`<div><b>${esc(teamName(S.champion))}</b><small>champion</small></div>`:opp!=null?`<div><small>this week vs</small><b style="font-size:18px">${esc(teamName(opp))}</b><small>${recStr(record(opp))} · proj ${lineupProj(S.lineups[opp].some(x=>x!=null)?S.lineups[opp]:bestLineup(S.rosters[opp],g),g)}</small></div><div><b>${lineupProj(lu,g)}</b><small>your projection</small></div>`:`<div><small>Eliminated</small><b style="font-size:18px">Playoffs continue</b></div>`}</div></div>`;
+  app.innerHTML=`<header class="dash gut"><div class="topbar"><span class="l">LC</span><span class="t">LC Fantasy Cricket</span><button class="r" data-go="rules">Rules</button></div>
+   <p class="hello">Hello<br><b>${esc(first)}</b></p><div class="gwstrip">${strip}</div></header>
+   <main class="gut">${top}
+    <div><div class="lbl-row"><p class="lbl">${pre?"Your lineup (after the draft)":"Your lineup on the field"}</p>${pre?"":'<button class="link" data-go="lineup">Edit lineup</button>'}</div>
+     <div class="ground" role="group" aria-label="Your starting lineup"><div class="pitch" aria-hidden="true"></div>${rowsIdx.map(r=>`<div class="frow">${r.map(tok).join("")}</div>`).join("")}</div>
+     ${!pre&&g<WEEKS?'<p class="note" style="margin-top:8px"><i class="sd on inl"></i> named in this week\'s XI &nbsp; <i class="sd off inl"></i> not named, scores 0</p>':""}</div>
+    ${pre?"":`<div><div class="lbl-row"><p class="lbl">Bench</p><span class="note">Bench points don't count</span></div><div class="benchrow">${bench.map(id=>{const p=BY_ID[id];return`<div class="bch"><span class="shirt sm">${initials(p.name)}</span><span>${esc(last(p.name))}<small>${p.role}${g<WEEKS?(inXI(id)?" · In XI":" · out"):""}</small></span></div>`}).join("")}</div></div>`}
+    <div class="quick">${[["lineup","Lineup",pre?"Draft room":"Set starters"],["matchup","Matchup",pre?"After draft":"This week"],["players","Players","Free agents"],["league","League",S.week?`You're #${myRank}`:"8 teams"]].map(([k,t,s])=>`<button class="qk" data-go="${k}"><span class="qi">${ICONS[k]}</span><b>${t}</b><small>${s}</small></button>`).join("")}</div>
+   </main>`+fabHtml(pre?{label:"Go to the draft",icon:ARROW,onClick:()=>go("lineup")}:playFab())+nav();
+  bindCommon();const f=$("#fab");if(f)f.onclick=pre?()=>go("lineup"):playFab().onClick}
+
+/* ---------- Draft room ---------- */
+function renderDraft(){const n=S.picks.length,round=Math.floor(n/NT)+1,onClock=pickTeam(n),mine=S.rosters[USER],myPos=S.order.indexOf(USER)+1;
+  const h=hero({title:"Draft room",right:"Rules",rightId:"rulesBtn",badge:`${Math.min(n+1,NT*ROUNDS)}`,name:onClock===USER?"You're on the clock":"Waiting…",subL:`Round ${Math.min(round,ROUNDS)} <span>of ${ROUNDS}</span>`,subR:`<span>You pick</span> #${myPos}`});
+  let pool=availableForDraft().filter(p=>(ui.dRole==="ALL"||p.role===ui.dRole)&&p.name.toLowerCase().includes(ui.q.toLowerCase())).sort((a,b)=>PROJ[b.id]-PROJ[a.id]);
+  let b=`<div class="banner">Snake draft: the order reverses every round. Each player can belong to only one team in the league. Rivals pick instantly by projection, with some variation.</div>
+   <div><p class="lbl">Your roster · ${mine.length}/${ROUNDS}</p><div class="quota">${ROLES.map(r=>{const c=roleCount(mine,r);return`<div class="${c>=ROLE_MIN[r]?"full":""}"><b>${c}</b><small>${r} · min ${ROLE_MIN[r]}</small></div>`}).join("")}</div></div>
+   <div class="actions"><button class="btn" id="autoMe">Auto-pick for me</button><button class="btn" id="autoAll">Auto-draft the rest</button></div>
+   <div><p class="lbl">Role</p><div class="seg" style="grid-template-columns:repeat(5,1fr)">${["ALL",...ROLES].map(r=>`<button data-drole="${r}" aria-pressed="${ui.dRole===r}">${r==="ALL"?"All":r}</button>`).join("")}</div></div>
+   <div class="search"><input type="search" id="q" placeholder="Search players" value="${esc(ui.q)}" aria-label="Search players"></div>
+   <div><div class="lbl-row"><p class="lbl">Best available</p><span class="note">Projected points per match</span></div><div class="card">${pool.slice(0,40).map(p=>{const why=draftBlock(mine,p);return pRow(p,why?`<div class="why">${why}</div>`:`<div class="acts"><button class="ic wide on" data-pick="${p.id}" aria-label="Draft ${esc(p.name)}">Draft</button></div>`,`<span>· rank ${RANK[p.id]}</span>`)}).join("")}</div></div>
+   <div><p class="lbl">Recent picks</p><div class="card">${S.picks.slice(-8).reverse().map(pk=>`<div class="p"><div><div class="nm">${esc(BY_ID[pk.id].name)}</div><div class="meta">Pick ${pk.n+1} · ${esc(teamName(pk.t))}</div></div><div class="price"><span class="role">${BY_ID[pk.id].role}</span></div><div></div></div>`).join("")||'<p class="note" style="padding:12px 0">No picks yet.</p>'}</div></div>`;
+  shell(h,b,null);
+  $("#rulesBtn").onclick=()=>go("rules");
+  app.querySelectorAll("[data-pick]").forEach(x=>x.onclick=()=>{makePick(USER,+x.dataset.pick);ui.q="";withLoader("Rivals picking…",500,()=>{runDraft();commit();if(S.phase==="season")window.scrollTo(0,0)})});
+  $("#autoMe").onclick=()=>{makePick(USER,chooseFor(USER,false).id);withLoader("Rivals picking…",500,()=>{runDraft();commit()})};
+  $("#autoAll").onclick=()=>withLoader("Finishing the draft…",900,()=>{runDraft(false);commit();window.scrollTo(0,0)});
+  app.querySelectorAll("[data-drole]").forEach(x=>x.onclick=()=>{ui.dRole=x.dataset.drole;render()});
+  const q=$("#q");q.oninput=e=>{ui.q=e.target.value;const pos=e.target.selectionStart;render();const nq=$("#q");nq.focus();nq.setSelectionRange(pos,pos)}}
+
+/* ---------- Lineup ---------- */
+function renderLineup(){if(S.phase==="predraft"){S.phase="draft";runDraft();save()}if(S.phase==="draft")return renderDraft();
+  const g=S.week,lu=S.lineups[USER],ros=S.rosters[USER],m=g<WEEKS?userMatch(g):null,opp=m?(m[0]===USER?m[1]:m[0]):null;
+  const h=hero({title:"Lineup",right:g<WEEKS?"Auto-set":"",rightId:"autoLu",badge:g<WEEKS?lineupProj(lu,g):"—",name:S.teamName,subL:g<WEEKS?weekLabel(g):"Season over",subR:opp!=null?`<span>vs</span> ${esc(teamName(opp))}`:"<span>Projected points</span>"});
+  const empty=lu.filter(x=>x==null).length,out=lu.filter(id=>id!=null&&g<WEEKS&&!inXI(id)).length;
+  let b=g>=WEEKS?'<div class="banner ok">The season is over. Lineups are locked.</div>':
+    (empty||out?`<div class="banner err">${empty?`${empty} empty slot${empty>1?"s":""}. `:""}${out?`${out} starter${out>1?"s are":" is"} not named in this week's XI and will score 0.`:""} Tap Auto-set or swap from your bench.</div>`:'<div class="banner ok">All starters are named in this week\'s XI.</div>');
+  b+=`<p class="note">Start 1 WK, 2 BAT, 2 AR, 3 BWL and 1 FLEX (any role). Playing XIs are announced at the toss, so you can see who plays before you lock in. Bench points don't count.</p>
+   <div><p class="lbl">Starters</p><div class="card">${SLOTS.map((sl,i)=>{const id=lu[i];const opts=ros.filter(x=>eligible(sl,x));
+     return`<div class="lrow"><span class="slot">${sl}</span><div style="min-width:0"><select id="slot-${i}" data-slot="${i}" aria-label="${sl} slot" ${g>=WEEKS?"disabled":""}><option value="">Empty</option>${opts.map(x=>`<option value="${x}"${x===id?" selected":""}>${esc(BY_ID[x].name)} · ${BY_ID[x].role} · ${PROJ[x]}</option>`).join("")}</select>
+     ${id!=null?`<div class="meta" style="margin-top:4px">${BY_ID[id].team} ${status(id)}</div>`:""}</div><div class="price">${id!=null?PROJ[id]:"–"}<small>proj</small></div></div>`}).join("")}</div></div>
+   <div><p class="lbl">Bench</p><div class="card">${ros.filter(id=>!lu.includes(id)).map(id=>pRow(BY_ID[id],"<div></div>",status(id))).join("")||'<p class="note" style="padding:12px 0">Everyone is starting.</p>'}</div></div>`;
+  shell(h,b,playFab());
+  const al=$("#autoLu");if(al)al.onclick=()=>{S.lineups[USER]=bestLineup(ros,g);commit()};
+  app.querySelectorAll("[data-slot]").forEach(sel=>sel.onchange=()=>{const i=+sel.dataset.slot,v=sel.value===""?null:+sel.value,cur=lu[i];const j=v!=null?lu.indexOf(v):-1;
+    lu[i]=v;if(j>-1&&j!==i)lu[j]=eligible(SLOTS[j],cur)?cur:null;commit()})}
+
+/* ---------- Matchup ---------- */
+function slotTable(g,a,b,showPts){const res=weekRes(g);const la=showPts?S.played[g].lineups[a]:S.lineups[a],lb=showPts?S.played[g].lineups[b]:(S.lineups[b].some(x=>x!=null)&&b===USER?S.lineups[b]:bestLineup(S.rosters[b],g));
+  const cell=id=>{if(id==null)return'<span class="note">Empty</span>';const p=BY_ID[id];const v=showPts?res[id].pts:inXI(id,g)?PROJ[id]:0;return`<div class="mc"><span>${esc(last(p.name))}<small>${p.team}${showPts?(res[id].played?"":" · DNP"):(inXI(id,g)?"":" · out")}</small></span><b>${v}</b></div>`};
+  return`<div class="card scroll"><table class="mt"><thead><tr><th>${esc(teamName(a))}</th><th class="sl"></th><th class="n">${esc(teamName(b))}</th></tr></thead><tbody>${SLOTS.map((sl,i)=>`<tr><td>${cell(la[i])}</td><td class="sl">${sl}</td><td class="rt">${cell(lb[i])}</td></tr>`).join("")}</tbody></table></div>`}
+function renderMatchup(){if(S.phase==="predraft"||S.phase==="draft"){shell(hero({title:"Matchup",badge:"—",name:"No matchups yet",subL:"Draft first",subR:""}),'<div class="banner">Matchups start after the draft.</div><button class="btn primary block" data-go="lineup">Go to the draft</button>');return}
+  const g=S.week,lastG=g-1,m=g<WEEKS?userMatch(g):null,lm=lastG>=0?userMatch(lastG):null;let b="",badge="—",name="",subL="",subR="";
+  if(lm){const o=lm[0]===USER?lm[1]:lm[0];const a=weekScore(lastG,USER),c=weekScore(lastG,o);badge=a;name=`${a} – ${c}`;
+    const semi=lastG===7||lastG===8;const verdict=semi?`Semi-final leg ${lastG-6} of 2. Running total ${semiTotal(USER)} – ${semiTotal(o)}.`:a>c?`You beat ${esc(teamName(o))}.`:a<c?`You lost to ${esc(teamName(o))}.`:"A tie.";
+    subL=weekLabel(lastG);subR=`<span>vs</span> ${esc(teamName(o))}`;
+    b+=`<div class="banner ${semi?"":a>=c?"ok":"err"}">${verdict}</div><div><p class="lbl">${weekLabel(lastG)} result</p>${slotTable(lastG,USER,o,true)}</div>`}
+  else if(lastG>=0){badge="—";name="Eliminated";subL=weekLabel(lastG);subR=""}
+  if(m){const o=m[0]===USER?m[1]:m[0];if(!lm){badge=lineupProj(S.lineups[USER],g);name=`vs ${teamName(o)}`;subL=weekLabel(g);subR=`<span>proj</span> ${lineupProj(bestLineup(S.rosters[o],g),g)}`}
+    b=`<div><div class="lbl-row"><p class="lbl">${weekLabel(g)} preview</p><button class="link" data-go="lineup">Edit lineup</button></div>${slotTable(g,USER,o,false)}<p class="note" style="margin-top:8px">Projected: you ${lineupProj(S.lineups[USER],g)}, ${esc(teamName(o))} ${lineupProj(bestLineup(S.rosters[o],g),g)}. Players not named in the XI project 0.</p></div>`+b}
+  else if(g<WEEKS)b=`<div class="banner">You're not in a playoff matchup this week. Play on to see who wins the league.</div>`+b;
+  if(S.phase==="done")b=`<div class="banner ok"><b>${esc(teamName(S.champion))}</b> won the LC Mini-League.</div>`+b;
+  if(!name)name="Matchup";
+  shell(hero({title:"Matchup",badge,name,subL,subR}),b,playFab())}
+
+/* ---------- Players (free agents) ---------- */
+function renderPlayers(){const g=S.week,ros=S.rosters[USER],pre=S.phase==="predraft"||S.phase==="draft";
+  const fa=freeAgents();let list=(ui.pview==="fa"?fa:PLAYERS).filter(p=>(ui.role==="ALL"||p.role===ui.role)&&p.name.toLowerCase().includes(ui.q.toLowerCase())).sort((a,b)=>PROJ[b.id]-PROJ[a.id]);
+  const h=hero({title:"Players",badge:fa.length,name:"Free agents",subL:`${fa.length} <span>available</span>`,subR:pre?"<span>After the draft</span>":`${ros.length} <span>on your roster</span>`});
   let b="";
-  if(S.sample&&S.gw===0)b+=`<div class="banner">This is an auto-picked sample squad. Remove players and add your own, or tap Auto-pick for another.</div>`;
-  b+=`<div><div class="lbl-row"><p class="lbl">Squad balance</p><button class="link" id="auto">Auto-pick</button></div><div class="quota">${ROLES.map(r=>{const n=countRole(sq,r);return`<div class="${n===QUOTA[r]?"full":""}"><b>${n}/${QUOTA[r]}</b><small>${r}</small></div>`}).join("")}</div>
-   <div class="meter${c>BUDGET?" over":""}" style="margin-top:12px"><i style="width:${Math.min(100,c)}%"></i></div></div>`;
-  if(S.gw>0&&S.gw<GWS)b+=`<div class="banner${hitCostCls()}">Transfers this week: ${tr} of ${S.free} free.${hitCost()?` This costs <b>−${hitCost()} points</b>.`:""}</div>`;
-  b+=`<div><p class="lbl">View</p><div class="toggle"><button data-pool="pool" aria-pressed="${ui.pool==="pool"}">Players</button><button data-pool="mine" aria-pressed="${ui.pool==="mine"}">My squad</button></div></div>`;
-  if(ui.pool==="mine"){b+=sq.length?ROLES.map(r=>{const ids=sq.filter(id=>BY_ID[id].role===r);return ids.length?`<div><p class="lbl">${ROLE_NAME[r]}</p><div class="card">${ids.map(id=>{const p=BY_ID[id];const isNew=S.locked&&S.gw>0&&!S.locked.includes(id);return pRow(p,`<div class="acts"><button class="ic rm" data-rm="${id}" aria-label="Remove ${esc(p.name)}">−</button></div>`,isNew?'<span class="tag g">IN</span>':"")}).join("")}</div></div>`:""}).join(""):'<p class="note">Your squad is empty. Switch to Players to add some.</p>'}
-  else{let pool=PLAYERS.filter(p=>!sq.includes(p.id)&&(ui.role==="ALL"||p.role===ui.role)&&(ui.team==="ALL"||p.team===ui.team)&&p.name.toLowerCase().includes(ui.q.toLowerCase())).sort((a,b)=>b.price-a.price||a.name.localeCompare(b.name));
-    b+=`<div><p class="lbl">Role</p><div class="seg" style="grid-template-columns:repeat(5,1fr)">${["ALL",...ROLES].map(r=>`<button data-role="${r}" aria-pressed="${ui.role===r}">${r==="ALL"?"All":r}</button>`).join("")}</div></div>
-    <div class="search"><input type="search" id="q" placeholder="Search players" value="${esc(ui.q)}" aria-label="Search players"><select id="tf" aria-label="Franchise"><option value="ALL">All franchises</option>${TEAM_KEYS.map(t=>`<option value="${t}"${ui.team===t?" selected":""}>${TEAMS[t]}</option>`).join("")}</select></div>
-    <div><div class="lbl-row"><p class="lbl">Available</p><span class="note">${pool.length} players · price in credits</span></div><div class="card">${pool.map(p=>{const why=addBlock(sq,p);return pRow(p,why?`<div class="why">${why}</div>`:`<div class="acts"><button class="ic add" data-add="${p.id}" aria-label="Add ${esc(p.name)}">+</button></div>`)}).join("")||'<p class="note" style="padding:12px 0">No players match.</p>'}</div></div>`}
-  const full=sq.length===SQUAD_SIZE&&c<=BUDGET;
-  shell(h,b,{label:full?"Pick your XI":`${SQUAD_SIZE-sq.length} players to add`,icon:ARROW,disabled:!full,onClick:()=>{S.tab="team";commit();window.scrollTo(0,0)}});
-  const cl=$("#clear");if(cl)cl.onclick=()=>{S.squad=[];S.xi=[];S.cap=S.vc=null;S.sample=false;ui.pool="pool";commit()};
-  $("#auto").onclick=()=>withLoader("Picking a squad…",700,()=>{S.squad=autoPick(rng(Date.now()),1500);Object.assign(S,autoXI(S.squad));S.sample=false;commit()});
-  app.querySelectorAll("[data-pool]").forEach(x=>x.onclick=()=>{ui.pool=x.dataset.pool;render()});
-  app.querySelectorAll("[data-rm]").forEach(x=>x.onclick=()=>{const id=+x.dataset.rm;S.squad=S.squad.filter(i=>i!==id);S.xi=S.xi.filter(i=>i!==id);if(S.cap===id)S.cap=null;if(S.vc===id)S.vc=null;S.sample=false;commit()});
-  app.querySelectorAll("[data-add]").forEach(x=>x.onclick=()=>{S.squad.push(+x.dataset.add);S.sample=false;if(S.squad.length===SQUAD_SIZE&&S.xi.length<11)Object.assign(S,autoXI(S.squad));commit()});
+  if(ui.adding!=null){const p=BY_ID[ui.adding];b+=`<div class="card" style="padding:14px 16px;border-color:var(--gold)"><p class="lbl" style="margin:0 0 6px">Add ${esc(p.name)} (${p.role}). Drop who?</p><div>${ros.map(id=>{const why=swapBlock(ros,p.id,id);return pRow(BY_ID[id],why?`<div class="why">${why}</div>`:`<div class="acts"><button class="ic wide rmw" data-drop="${id}">Drop</button></div>`,status(id))}).join("")}</div><button class="btn" id="cancelAdd" style="margin-top:8px">Cancel</button></div>`}
+  b+=`<div class="toggle"><button data-pv="fa" aria-pressed="${ui.pview==="fa"}">Free agents</button><button data-pv="all" aria-pressed="${ui.pview==="all"}">All players</button></div>
+   <div class="seg" style="grid-template-columns:repeat(5,1fr)">${["ALL",...ROLES].map(r=>`<button data-role="${r}" aria-pressed="${ui.role===r}">${r==="ALL"?"All":r}</button>`).join("")}</div>
+   <div class="search"><input type="search" id="q" placeholder="Search players" value="${esc(ui.q)}" aria-label="Search players"></div>
+   <p class="note">Free agents can be added straight away by dropping a player. This prototype skips ESPN's waiver period.</p>
+   <div class="card">${list.map(p=>{const o=ownerOf(p.id);const right=o==null?(pre?'<div class="why">After draft</div>':`<div class="acts"><button class="ic add" data-add="${p.id}" aria-label="Add ${esc(p.name)}">+</button></div>`):`<div class="why">${o===USER?"Yours":esc(teamName(o))}</div>`;return pRow(p,right,status(p.id))}).join("")||'<p class="note" style="padding:12px 0">No players match.</p>'}</div>`;
+  shell(h,b,null);
+  app.querySelectorAll("[data-pv]").forEach(x=>x.onclick=()=>{ui.pview=x.dataset.pv;render()});
   app.querySelectorAll("[data-role]").forEach(x=>x.onclick=()=>{ui.role=x.dataset.role;render()});
-  const q=$("#q");if(q)q.oninput=e=>{ui.q=e.target.value;const pos=e.target.selectionStart;render();const n=$("#q");n.focus();n.setSelectionRange(pos,pos)};
-  const tf=$("#tf");if(tf)tf.onchange=e=>{ui.team=e.target.value;render()}}
-function hitCostCls(){return hitCost()?" err":""}
-
-/* ---------- Pick XI ---------- */
-function xiProblems(){const p=[];if(S.squad.length<SQUAD_SIZE)p.push(`Squad has ${S.squad.length} of 15 players.`);if(cost(S.squad)>BUDGET)p.push("Squad is over budget.");
-  if(S.xi.length!==11)p.push(`Starting XI has ${S.xi.length} players; it needs 11.`);ROLES.forEach(r=>{const n=S.xi.filter(id=>BY_ID[id].role===r).length;if(n<XI_MIN[r])p.push(`XI needs at least ${XI_MIN[r]} ${r} (has ${n}).`)});
-  if(S.cap==null||!S.xi.includes(S.cap))p.push("Choose a captain from your XI.");if(S.vc==null||!S.xi.includes(S.vc)||S.vc===S.cap)p.push("Choose a different vice-captain from your XI.");return p}
-function renderTeam(){const capName=S.cap!=null&&BY_ID[S.cap]?BY_ID[S.cap].name.split(" ").slice(-1)[0]:"—";
-  const h=hero({title:"Pick XI",right:"Auto",rightId:"autoxi",badge:S.xi.length,name:S.gw<GWS?`Gameweek ${S.gw+1}`:"Season over",subL:`Captain <span>·</span> ${esc(capName)}`,subR:`${S.xi.length} <span>/ 11 starting</span>`});
-  if(S.squad.length<SQUAD_SIZE){shell(h,`<div class="banner">Complete your 15-player squad first. You have ${S.squad.length}.</div><button class="btn primary block" id="goSquad">Go to squad</button>`);$("#goSquad").onclick=()=>{S.tab="squad";commit()};$("#autoxi").hidden=true;return}
-  const probs=xiProblems(),bench=S.squad.filter(id=>!S.xi.includes(id));
-  const row=(id,inXI)=>{const p=BY_ID[id];return pRow(p,`<div class="acts"><button class="ic wide ${inXI?"on":""}" data-tog="${id}" aria-pressed="${inXI}">${inXI?"XI":"Start"}</button><button class="ic ${S.cap===id?"cap":""}" data-cap="${id}" ${inXI?"":"disabled"} aria-label="Make captain">C</button><button class="ic ${S.vc===id?"cap":""}" data-vc="${id}" ${inXI?"":"disabled"} aria-label="Make vice-captain">VC</button></div>`,S.cap===id?'<span class="tag">C ×2</span>':S.vc===id?'<span class="tag m">VC ×1.5</span>':"")};
-  let b=probs.length?`<div class="banner err">${probs.map(esc).join("<br>")}</div>`:'<div class="banner ok">Your XI is valid. Tap the tick to lock it in.</div>';
-  b+=`<p class="note">Start at least 1 WK, 3 BAT, 1 AR and 3 BWL. If a starter doesn't play, the first bench player who keeps the XI valid comes on.</p>`;
-  b+=ROLES.map(r=>{const ids=S.xi.filter(id=>BY_ID[id].role===r);return ids.length?`<div><p class="lbl">${ROLE_NAME[r]}</p><div class="card">${ids.map(id=>row(id,true)).join("")}</div></div>`:""}).join("");
-  b+=`<div><div class="lbl-row"><p class="lbl">Bench</p><span class="note">Substitution order</span></div><div class="card">${bench.map(id=>row(id,false)).join("")||'<p class="note" style="padding:12px 0">Bench is empty.</p>'}</div></div>`;
-  shell(h,b,{label:probs.length?"Fix your XI":"Confirm XI",icon:CHECK,disabled:probs.length>0,onClick:()=>{S.tab="week";commit();window.scrollTo(0,0)}});
-  app.querySelectorAll("[data-tog]").forEach(x=>x.onclick=()=>{const id=+x.dataset.tog;if(S.xi.includes(id)){S.xi=S.xi.filter(i=>i!==id);if(S.cap===id)S.cap=null;if(S.vc===id)S.vc=null}else if(S.xi.length<11)S.xi.push(id);commit()});
-  app.querySelectorAll("[data-cap]").forEach(x=>x.onclick=()=>{const id=+x.dataset.cap;if(S.vc===id)S.vc=S.cap;S.cap=id;commit()});
-  app.querySelectorAll("[data-vc]").forEach(x=>x.onclick=()=>{const id=+x.dataset.vc;if(S.cap===id)S.cap=S.vc;S.vc=id;commit()});
-  $("#autoxi").onclick=()=>{Object.assign(S,autoXI(S.squad));commit()}}
-
-/* ---------- Gameweek ---------- */
-function playGW(){const g=S.gw,tr=pendingTransfers(),hc=hitCost(),r=teamGW(S,g);
-  S.hist.push({gw:g,gross:r.total,hit:hc,net:r.total-hc,transfers:tr,snap:{squad:[...S.squad],xi:[...S.xi],cap:S.cap,vc:S.vc}});
-  S.rivals.forEach(rv=>rv.hist.push({gw:g,net:teamGW(rv,g).total}));
-  S.free=S.gw===0?1:Math.min(2,Math.max(0,S.free-tr)+1);S.locked=[...S.squad];S.gw++;S.sample=false;commit()}
-function renderWeek(){const g=S.gw,last=S.hist[S.hist.length-1];
-  const h=hero({title:"Gameweek",badge:last?last.net:"—",name:g<GWS?`Gameweek ${g+1}`:"League stage complete",subL:last?`GW${last.gw+1} <span>points</span>`:"<span>No points yet</span>",subR:`${total(S.hist)} <span>season</span>`});
-  let b="";const probs=xiProblems();
-  if(g<GWS){b+=`<div><div class="lbl-row"><p class="lbl">Fixtures</p><span class="note">Each franchise plays twice</span></div><div class="fix">${FIXTURES[g].map(([a,c])=>`<div class="fx">${a} v ${c}<small>${esc(TEAMS[a])} home</small></div>`).join("")}</div></div>`;
-    if(probs.length)b+=`<div class="banner err">Fix your team before playing:<br>${probs.map(esc).join("<br>")}</div>`;
-    if(hitCost())b+=`<div class="banner err">Transfer cost this week: −${hitCost()} points.</div>`;
-    b+=`<p class="note">Match results are simulated by the app.</p>`}
-  else b+=`<div class="banner ok">You finished on <b>${total(S.hist)}</b> points. Playoffs aren't modelled yet. Reset the season from the League tab to play again.</div>`;
-  if(last){const r=teamGW(last.snap,last.gw);
-    b+=`<div class="statrow"><div><b>${last.net}</b><small>GW${last.gw+1} points</small></div><div><b>${last.transfers}</b><small>transfers${last.hit?` (−${last.hit})`:""}</small></div><div><b>${r.subs.length}</b><small>auto-subs</small></div></div>
-    <div><p class="lbl">Gameweek ${last.gw+1} breakdown</p><div class="card scroll"><table><thead><tr><th>Player</th><th>Match lines</th><th class="n">Pts</th></tr></thead><tbody>
-    ${r.rows.sort((a,c)=>c.pts-a.pts).map(x=>{const p=BY_ID[x.id];const tags=(x.m===2?' <span class="tag">C</span>':x.m===1.5?' <span class="tag m">VC</span>':"")+(x.sub?' <span class="tag g">SUB</span>':"");
-      const lines=x.played?x.lines.map(l=>`<div class="line" title="${esc(l.sc.parts.map(([a,c])=>a+" "+(c>0?"+":"")+c).join(", "))}">v ${l.opp}: ${fmtLine(l.L)} = ${l.sc.s}</div>`).join(""):'<span class="note">Did not play</span>';
-      return`<tr><td><b style="font-weight:500">${esc(p.name)}</b>${tags}<div class="note" style="font-size:12.5px">${p.role} · ${p.team}</div></td><td>${lines}</td><td class="n big">${x.pts}</td></tr>`}).join("")}</tbody></table></div>
-    ${r.subs.length?`<p class="note" style="margin-top:10px">${r.subs.map(s=>`${esc(BY_ID[s.in].name)} came on for ${esc(BY_ID[s.out].name)}`).join("; ")}.</p>`:""}
-    <p class="note" style="margin-top:8px">Batting: runs(balls), * not out. Bowling: overs-maidens-runs-wickets.</p></div>`;
-    const res=simGW(last.gw);const top=PLAYERS.filter(p=>res[p.id].played).map(p=>({p,pts:res[p.id].pts})).sort((a,c)=>c.pts-a.pts).slice(0,5);
-    b+=`<div><p class="lbl">Top scorers</p><div class="card">${top.map(x=>`<div class="p"><div><div class="nm">${esc(x.p.name)}</div><div class="meta"><span class="role">${x.p.role}</span>${x.p.team}${S.squad.includes(x.p.id)?' <span class="tag g">YOURS</span>':""}</div></div><div class="price">${x.pts}</div><div></div></div>`).join("")}</div></div>`}
-  shell(h,b,g<GWS?{label:probs.length?"Fix your team first":`Play gameweek ${g+1}`,icon:CHECK,disabled:probs.length>0,onClick:()=>withLoader(`Playing gameweek ${g+1}…`,1100,()=>{playGW();window.scrollTo(0,0)})}:null)}
+  app.querySelectorAll("[data-add]").forEach(x=>x.onclick=()=>{ui.adding=+x.dataset.add;render();window.scrollTo(0,0)});
+  const c=$("#cancelAdd");if(c)c.onclick=()=>{ui.adding=null;render()};
+  app.querySelectorAll("[data-drop]").forEach(x=>x.onclick=()=>{const drop=+x.dataset.drop,add=ui.adding;S.rosters[USER]=ros.filter(i=>i!==drop).concat(add);const lu=S.lineups[USER];const i=lu.indexOf(drop);if(i>-1)lu[i]=eligible(SLOTS[i],add)?add:null;ui.adding=null;commit()});
+  const q=$("#q");q.oninput=e=>{ui.q=e.target.value;const pos=e.target.selectionStart;render();const nq=$("#q");nq.focus();nq.setSelectionRange(pos,pos)}}
 
 /* ---------- League ---------- */
-function renderLeague(){const me={manager:ui.user?.name||"You",team:S.teamName,hist:S.hist,me:true};
-  const rows=[me,...S.rivals].map(r=>({...r,tot:r.hist.reduce((a,x)=>a+x.net,0),last:r.hist.length?r.hist[r.hist.length-1].net:null})).sort((a,c)=>c.tot-a.tot);
-  const rank=rows.findIndex(r=>r.me)+1,max=Math.max(1,...rows.flatMap(r=>r.hist.map(x=>x.net)));
-  const h=hero({title:"League",badge:S.gw?"#"+rank:"—",name:"LC Mini-League",subL:`8 <span>teams</span>`,subR:`${S.gw}/${GWS} <span>gameweeks</span>`});
-  let b=`<div class="card scroll"><table><thead><tr><th class="n">#</th><th>Team</th><th>Form</th><th class="n">GW</th><th class="n">Total</th></tr></thead><tbody>
-  ${rows.map((r,i)=>`<tr class="${r.me?"me":""}"><td class="n">${i+1}</td><td><b style="font-weight:500">${esc(r.team)}</b><div class="note" style="font-size:12.5px">${esc(r.manager)}</div></td><td><div class="spark">${r.hist.map(x=>`<i style="height:${Math.max(6,x.net/max*100)}%" title="GW${x.gw+1}: ${x.net}"></i>`).join("")||'<span class="note">—</span>'}</div></td><td class="n">${r.last??"—"}</td><td class="n big">${r.tot}</td></tr>`).join("")}</tbody></table></div>
-  <p class="note">Rival managers are sample entries generated by the app, each with an auto-picked squad scored on the same simulated matches.</p>
+function renderLeague(){const st=standings(),myRank=st.findIndex(x=>x.t===USER)+1;
+  const h=hero({title:"League",badge:S.week?"#"+myRank:"—",name:"LC Mini-League",subL:"8 <span>teams</span>",subR:`${Math.min(S.week,REG_WEEKS)}/${REG_WEEKS} <span>regular weeks</span>`});
+  let b=`<div><p class="lbl">Standings</p><div class="card scroll"><table><thead><tr><th class="n">#</th><th>Team</th><th class="n">W-L</th><th class="n">PF</th><th class="n">PA</th></tr></thead><tbody>
+   ${st.map((r,i)=>`<tr class="${r.t===USER?"me":""}${i===3?" cut":""}"><td class="n">${i+1}</td><td><b style="font-weight:500">${esc(teamName(r.t))}</b><div class="note" style="font-size:12.5px">${esc(managerName(r.t))}</div></td><td class="n">${recStr(r)}</td><td class="n">${r.pf}</td><td class="n">${r.pa}</td></tr>`).join("")}</tbody></table></div>
+   <p class="note" style="margin-top:8px">Top 4 after week 7 make the playoffs. Ties in the table are split by points for.</p></div>`;
+  if(S.seeds){const s=S.seeds;b+=`<div><p class="lbl">Playoffs</p><div class="card" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">
+    <div><small class="note">Semi-finals · weeks 8–9 combined</small>${[[s[0],s[3]],[s[1],s[2]]].map(([a,c])=>`<div class="br"><span>${esc(teamName(a))}</span><b>${S.week>7?semiTotal(a):"–"}</b></div><div class="br"><span>${esc(teamName(c))}</span><b>${S.week>7?semiTotal(c):"–"}</b></div>`).join('<hr>')}</div>
+    ${S.final?`<div><small class="note">Final · week 10</small><div class="br"><span>${esc(teamName(S.final[0]))}</span><b>${weekScore(9,S.final[0])??"–"}</b></div><div class="br"><span>${esc(teamName(S.final[1]))}</span><b>${weekScore(9,S.final[1])??"–"}</b></div></div>`:""}
+    ${S.champion!=null?`<div class="banner ok">Champion: <b>${esc(teamName(S.champion))}</b></div>`:""}</div></div>`}
+  b+=`<div><p class="lbl">Schedule</p><div class="card">${SCHEDULE.map((wk,w)=>`<div class="sch"><small class="note">Week ${w+1}${w===S.week?" · next":""}</small>${wk.filter(p=>p.includes(USER)).map(([a,c])=>{const o=a===USER?c:a;const sa=weekScore(w,USER),so=weekScore(w,o);return`<div class="br"><span>vs ${esc(teamName(o))}</span><b class="${sa==null?"":sa>so?"win":sa<so?"loss":""}">${sa==null?"–":`${sa>so?"W":sa<so?"L":"T"} ${sa}–${so}`}</b></div>`}).join("")}</div>`).join("")}</div></div>
   <div><p class="lbl">Team name</p><div class="search"><input type="text" id="tn" value="${esc(S.teamName)}" maxlength="32" aria-label="Team name"><button class="btn" id="savetn">Rename</button></div></div>
   <div><p class="lbl">Account</p><div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px"><div>${esc(ui.user?.name||"")}<div class="note">${esc(ui.user?.email||"")}</div></div>
-   <div class="actions"><button class="btn" id="signout">Sign out</button><button class="btn" id="reset">${ui.resetArm?"Tap again to confirm":"Reset season"}</button></div></div></div>`;
-  shell(h,b);
+   <div class="actions"><button class="btn" id="signout">Sign out</button><button class="btn" id="reset">${ui.resetArm?"Tap again to confirm":"New season"}</button></div></div></div>`;
+  shell(h,b,null);
   $("#savetn").onclick=()=>{S.teamName=$("#tn").value.trim()||"LC Strikers";commit()};
   $("#signout").onclick=()=>{ui.user=null;ui.screen="auth";ui.authMode="in";render();window.scrollTo(0,0)};
-  $("#reset").onclick=()=>{if(ui.resetArm){ui.resetArm=false;const tn=S.teamName;S=fresh();S.teamName=tn;for(const k in gwCache)delete gwCache[k];S.tab="league";commit()}else{ui.resetArm=true;render();setTimeout(()=>{if(ui.resetArm){ui.resetArm=false;if(S.tab==="league"&&ui.screen==="app")render()}},4000)}}}
+  $("#reset").onclick=()=>{if(ui.resetArm){ui.resetArm=false;const tn=S.teamName;S=fresh();S.teamName=tn;for(const k in gwCache)delete gwCache[k];S.tab="home";commit();window.scrollTo(0,0)}else{ui.resetArm=true;render();setTimeout(()=>{if(ui.resetArm){ui.resetArm=false;if(S.tab==="league"&&ui.screen==="app")render()}},4000)}}}
 
 /* ---------- Rules ---------- */
 function renderRules(){const t=(title,rows)=>`<div><p class="lbl">${title}</p><div class="card"><table class="rules"><tbody>${rows.map(([a,c])=>`<tr><td>${a}</td><td class="n">${c}</td></tr>`).join("")}</tbody></table></div></div>`;
-  const h=hero({title:"Rules",badge:"T20",name:"How it works",subL:"Fantasy football <span>for</span> cricket",subR:"<span>SA20</span>"});
-  shell(h,`<p>Pick a 15-player squad on a fixed budget, choose a starting XI and captain each gameweek, and use limited transfers. The bench auto-substitutes for starters who don't play.</p>
-  ${t("Squad",[["Budget","100.0 credits"],["Squad size","15"],["WK / BAT / AR / BWL","2 / 5 / 3 / 5"],["Players from one franchise","max 3"],["Starting XI minimum","1 WK, 3 BAT, 1 AR, 3 BWL"],["Captain","2×"],["Vice-captain","1.5× (2× if captain doesn't play)"],["Free transfers","1 a week, carry up to 2"],["Each extra transfer","−4"]])}
+  shell(hero({title:"Rules",badge:"T20",name:"How it works",subL:"ESPN-style <span>league</span>",subR:"<span>SA20</span>"}),
+  `<p>Season-long, head-to-head league modelled on ESPN fantasy football. Draft a roster, set a lineup each week, and play one rival per week. The best record after week 7 wins a playoff spot.</p>
+  ${t("League",[["Teams","8 (you + 7 rivals)"],["Draft","Snake, 12 rounds"],["Player ownership","Each player on one team only"],["Starting lineup","WK, 2 BAT, 2 AR, 3 BWL, FLEX"],["Bench","3"],["Roster limits","WK ≤2, BAT ≤4, AR ≤4, BWL ≤5"],["Free agents","Add any time by dropping a player"]])}
+  ${t("Season",[["Fantasy week","One SA20 round (each franchise plays once)"],["Regular season","Weeks 1–7, play every rival once"],["Standings","Wins, then points for"],["Playoffs","Top 4: semis over weeks 8–9, final week 10"],["Player not in playing XI","Scores 0; no auto-subs"]])}
   ${t("Batting",[["Run","+1"],["Boundary bonus","+1"],["Six bonus","+2"],["30-run bonus","+4"],["Half-century","+8"],["Century (replaces lower bonuses)","+16"],["Duck (not bowlers)","−2"],["Strike rate, min 10 balls: >170 / 150–170 / 130–150","+6 / +4 / +2"],["Strike rate: 60–70 / 50–59.99 / <50","−2 / −4 / −6"]])}
   ${t("Bowling",[["Wicket (not run out)","+25"],["LBW or bowled bonus","+8"],["3 / 4 / 5-wicket haul","+4 / +8 / +16"],["Maiden","+12"],["Economy, min 2 overs: <5 / 5–5.99 / 6–7","+6 / +4 / +2"],["Economy: 10–11 / 11.01–12 / >12","−2 / −4 / −6"]])}
-  ${t("Fielding and other",[["Catch","+8"],["3-catch bonus","+4"],["Stumping","+12"],["Run out, direct / assist","+12 / +6"],["Named in starting XI","+4"]])}
-  <p class="note">Squads: SA20 2027 squads after the 7 October 2026 auction, as reported by Wisden. Player roles, prices, fixture order and all match results are prototype values generated by the app. Scoring follows the published Dream11 T20 point system.</p>`)}
-
-/* ---------- Home dashboard ---------- */
-function initials(n){const w=n.split(" ");return(w[0][0]+w[w.length-1][0]).toUpperCase()}
-function renderHome(){const first=(ui.user?.name||"Manager").split(" ")[0];const rows=[{me:true,tot:total(S.hist)},...S.rivals.map(r=>({tot:r.hist.reduce((a,x)=>a+x.net,0)}))].sort((a,c)=>c.tot-a.tot);
-  const rank=S.gw?rows.findIndex(r=>r.me)+1:null,last=S.hist[S.hist.length-1],c=cost(S.squad),probs=xiProblems();
-  const strip=Array.from({length:GWS},(_,g)=>{const h=S.hist.find(x=>x.gw===g);const cur=g===S.gw;return`<button class="gwd${cur?" cur":""}${h?" done":""}" data-gw="${g}" aria-label="Gameweek ${g+1}${h?`, ${h.net} points`:""}"><small>GW</small><b>${g+1}</b><em>${h?h.net:cur?"next":"—"}</em></button>`}).join("");
-  const xiByRole=r=>S.xi.filter(id=>BY_ID[id]?.role===r);
-  const tok=id=>{const p=BY_ID[id];const tag=S.cap===id?'<i class="cv">C</i>':S.vc===id?'<i class="cv vc">VC</i>':"";return`<button class="tok" data-go="team" aria-label="${esc(p.name)}, ${p.role}${S.cap===id?", captain":S.vc===id?", vice-captain":""}"><span class="shirt">${initials(p.name)}${tag}</span><span class="tn">${esc(p.name.split(" ").slice(-1)[0])}</span><span class="tr">${p.role} · ${p.team}</span></button>`};
-  const slot=r=>`<button class="tok empty" data-go="team" aria-label="Add a ${r}"><span class="shirt">+</span><span class="tn">${r}</span></button>`;
-  const lineRow=(r,min)=>{const ids=xiByRole(r);const n=Math.max(ids.length,ids.length?0:min);return`<div class="frow">${ids.map(tok).join("")}${Array.from({length:Math.max(0,min-ids.length)}).map(()=>slot(r)).join("")}</div>`};
-  const bench=S.squad.filter(id=>!S.xi.includes(id));
-  app.innerHTML=`<header class="dash gut"><div class="topbar"><span class="l">LC</span><span class="t">LC Fantasy Cricket</span><button class="r" data-go="rules">Rules</button></div>
-   <p class="hello">Hello<br><b>${esc(first)}</b></p><div class="gwstrip">${strip}</div></header>
-   <main class="gut">
-    <div class="livecard"><div class="lc-stats"><div><b>${total(S.hist)}</b><small>season points</small></div><div><b>${rank?"#"+rank:"—"}</b><small>mini-league rank of 8</small></div><div><b>${last?last.net:"—"}</b><small>${last?`GW${last.gw+1} points`:"no games yet"}</small></div></div>
-     <div class="lc-side"><span class="lc-k">${S.gw<GWS?`Gameweek ${S.gw+1}`:"Season done"}</span><div><b>${(BUDGET-c).toFixed(1)}</b><small>credits in bank</small></div><div><b>${S.gw>0?S.free:"∞"}</b><small>free transfers</small></div></div></div>
-    <div><div class="lbl-row"><p class="lbl">Your XI on the field</p><button class="link" data-go="team">Edit XI</button></div>
-     <div class="ground" role="group" aria-label="Your starting XI">
-      <div class="pitch" aria-hidden="true"></div>
-      ${lineRow("WK",1)}${lineRow("BAT",3)}${lineRow("AR",1)}${lineRow("BWL",3)}
-     </div>
-     ${probs.length?`<div class="banner err" style="margin-top:12px">${probs.map(esc).join("<br>")}</div>`:""}
-    </div>
-    <div><div class="lbl-row"><p class="lbl">Bench</p><span class="note">Auto-sub order</span></div><div class="benchrow">${bench.map(id=>{const p=BY_ID[id];return`<div class="bch"><span class="shirt sm">${initials(p.name)}</span><span>${esc(p.name.split(" ").slice(-1)[0])}<small>${p.role}</small></span></div>`}).join("")||'<p class="note">No bench players yet.</p>'}</div></div>
-    <div class="quick">${[["squad","Squad",`${S.squad.length}/15 players`],["week","Gameweek",S.gw<GWS?`GW${S.gw+1} fixtures`:"Results"],["league","League",rank?`You're #${rank}`:"8 teams"],["rules","Scoring","Points table"]].map(([k,t,s])=>`<button class="qk" data-go="${k}"><span class="qi">${ICONS[k]}</span><b>${t}</b><small>${s}</small></button>`).join("")}</div>
-   </main>`
-  +(S.gw<GWS?`<span class="fab-l">${probs.length?"Fix your XI":`Play gameweek ${S.gw+1}`}</span><button class="fab" id="fab" aria-label="${probs.length?"Fix your XI":`Play gameweek ${S.gw+1}`}">${probs.length?ARROW:CHECK}</button>`:"")
-  +`<nav class="tabs" role="tablist" aria-label="Sections">${TABS.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${ICONS[k]}<span>${l}</span></button>`).join("")}</nav>`;
-  app.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;commit();window.scrollTo(0,0)});
-  app.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{S.tab=b.dataset.go;commit();window.scrollTo(0,0)});
-  app.querySelectorAll("[data-gw]").forEach(b=>b.onclick=()=>{S.tab="week";commit();window.scrollTo(0,0)});
-  const f=$("#fab");if(f)f.onclick=probs.length?()=>{S.tab="team";commit();window.scrollTo(0,0)}:()=>withLoader(`Playing gameweek ${S.gw+1}…`,1100,()=>{playGW();S.tab="week";commit();window.scrollTo(0,0)})}
+  ${t("Fielding and other",[["Catch","+8"],["3-catch bonus","+4"],["Stumping","+12"],["Run out, direct / assist","+12 / +6"],["Named in playing XI","+4"]])}
+  <p class="note">Squads: SA20 2027 squads after the 7 October 2026 auction, as reported by Wisden. Player roles, projections, fixture order and all match results are prototype values generated by the app. Scoring follows the published Dream11 T20 point system.</p>`,null)}
 
 /* ---------- Boot ---------- */
-function render(){if(ui.screen==="auth")return renderAuth();if(!S.tab)S.tab="home";({home:renderHome,squad:renderSquad,team:renderTeam,week:renderWeek,league:renderLeague,rules:renderRules})[S.tab]()}
+function render(){if(ui.screen==="auth")return renderAuth();if(!S.tab)S.tab="home";({home:renderHome,lineup:renderLineup,matchup:renderMatchup,players:renderPlayers,league:renderLeague,rules:renderRules}[S.tab]||renderHome)()}
 function commit(){save();render()}
 render();
 (function splash(){const sp=document.getElementById("splash");const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
